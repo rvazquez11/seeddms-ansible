@@ -1,0 +1,30 @@
+---
+# tasks file for seeddms_common
+
+  - name: Install basic features
+    yum: name={{ item }} state=present
+    with_items:
+      - epel-release
+      - nano
+      - wget
+      - libselinux-python
+      - ntp
+      - firewalld
+
+  - name: Start and enable ntp
+    service: name=ntpd state=started enabled=yes
+  
+  - name: turns on firewalld
+    service: name=firewalld state=started enabled=yes
+
+  - name: turns off firewalld
+    service: name=firewalld state=stopped
+
+  - name: update CentOS
+    yum: name=* state=latest update_cache=yes
+    
+  - name: Ensure Selinux is disabled
+    become: true
+    selinux:
+      conf: /etc/selinux/config
+      state: disabled
