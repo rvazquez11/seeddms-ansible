@@ -1,0 +1,19 @@
+---
+# tasks file for seeddms_mysql
+
+- name: Install MariaDB package
+  yum: name={{ item }} state=installed
+  with_items:
+   - mariadb
+   - mariadb-server
+   - MySQL-python
+  
+- name: Start MariaDB Service
+  service: name=mariadb state=started enabled=yes
+  
+- name: Create Application Database
+  mysql_db: name=seeddms state=present
+
+- name: Create Application DB User
+  mysql_user: name=seeddms password=password priv='*.*:ALL,GRANT' host='%' state=present
+  
