@@ -1,1 +1,27 @@
 
+---
+# tasks file for seeddms_haproxoy
+
+  - name: Install HAProxy features
+    yum: name=haproxy state=latest
+    
+
+  - name: remove haproxy.cfg file
+    command: rm -rf /etc/haproxy/haproxy.cfg 
+    
+
+  - name: Create HAProxy config file using preconfigured template
+    template:
+      src: haproxy.cfg.j2
+      dest: /etc/haproxy/haproxy.cfg
+      mode: 0644  
+
+  - name: restart haproxy
+    service: name=haproxy state=restarted
+    
+
+  - name: Ensure HAProxy is started and enabled on boot.
+    service: name=haproxy state=started enabled=yes
+    
+
+
