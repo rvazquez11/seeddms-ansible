@@ -1,0 +1,183 @@
+---
+- hosts: digitalocean
+
+  vars:
+    do_token: 
+    
+  strategy: free
+  tasks:
+
+  - name: ensure ssh key exists
+    user: >
+      name={{ ansible_user_id }}
+      generate_ssh_key=yes
+      ssh_key_file=.ssh/id_rsa
+
+  - name: ensure key exists at DigitalOcean
+    digital_ocean: >
+      state=present
+      command=ssh
+      name=my_ssh_key
+      ssh_pub_key={{ lookup('file', '~/.ssh/id_rsa.pub') }}
+      api_token={{ do_token }}
+    register: my_ssh_key
+
+  - name: ensure droplet one exists
+    digital_ocean: >
+      state=present
+      command=droplet
+      name=mysql
+      unique_name=yes
+      size_id=512mb
+      region_id=sgp1
+      image_id=18835303
+      ssh_key_ids="{{ my_ssh_key.ssh_key.id }}"
+      api_token={{ do_token }}
+    register: mysql
+
+  - debug: msg="IP is {{ mysql.droplet.ip_address }}"
+
+  - name: ensure droplet two exists
+    digital_ocean: >
+      state=present
+      command=droplet
+      name=www1
+      unique_name=yes
+      size_id=512mb
+      region_id=sgp1
+      image_id=18835303
+      ssh_key_ids={{ my_ssh_key.ssh_key.id }}
+      api_token={{ do_token }}
+    register: www1
+
+  - debug: msg="IP is {{ www1.droplet.ip_address }}"
+
+  - name: ensure droplet three exists
+    digital_ocean: >
+      state=present
+      command=droplet
+      name=www2
+      unique_name=yes
+      size_id=512mb
+      region_id=sgp1
+      image_id=18835303
+      ssh_key_ids={{ my_ssh_key.ssh_key.id }}
+      api_token={{ do_token }}
+    register: www2
+
+  - debug: msg="IP is {{ www2.droplet.ip_address }}"
+
+  - name: ensure droplet four exists
+    digital_ocean: >
+      state=present
+      command=droplet
+      name=www3
+      unique_name=yes
+      size_id=512mb
+      region_id=sgp1
+      image_id=18835303
+      ssh_key_ids={{ my_ssh_key.ssh_key.id }}
+      api_token={{ do_token }}
+    register: www3
+
+  - debug: msg="IP is {{ www3.droplet.ip_address }}"
+
+  - name: ensure droplet two exists
+    digital_ocean: >
+      state=present
+      command=droplet
+      name=haproxy
+      unique_name=yes
+      size_id=512mb
+      region_id=sgp1
+      image_id=18835303
+      ssh_key_ids={{ my_ssh_key.ssh_key.id }}
+      api_token={{ do_token }}
+    register: haproxy
+
+  - debug: msg="IP is {{ haproxy.droplet.ip_address }}"
+
+- name: adding host playbook
+  hosts: localhost
+  connection: local
+  tasks:
+  - name: add host to ansible host file
+    lineinfile:
+      dest: /root/ansible-do-api/hosts
+      insertafter: [[mysql]]
+      line: "{{ mysql.droplet.ip_address }}"
+        
+
+  - name: add host to ansible host file
+    lineinfile:
+      dest: /root/ansible-do-api/hosts
+      insertafter: [[webservers]]
+      line: "{{ www1.droplet.ip_address }}"
+  
+  - name: add host to ansible host file
+    lineinfile:
+      dest: /root/ansible-do-api/hosts
+      insertafter: "{{ www1.droplet.ip_address }}"
+      line: "{{ www2.droplet.ip_address }}"
+
+  - name: add host to ansible host file
+    lineinfile:
+      dest: /root/ansible-do-api/hosts
+      insertafter: "{{ www2.droplet.ip_address }}"
+      line: "{{ www3.droplet.ip_address }}"
+
+  - name: add host to ansible host file
+    lineinfile:
+      dest: /root/ansible-do-api/hosts
+      insertafter: [[haproxy]]
+      line: "{{ haproxy.droplet.ip_address }}"
+
+- name: Store known hosts of 'all' the hosts in the inventory file
+  hosts: localhost
+  connection: local
+
+  vars:
+    ssh_known_hosts_command: "ssh-keyscan -T 10"
+    ssh_known_hosts_file: "{{ lookup('env','HOME') + '/.ssh/known_hosts' }}"
+    ssh_known_hosts: "{{ groups['all'] }}"
+
+  tasks:
+
+  - name: For each host, scan for its ssh public key
+    shell: "ssh-keyscan {{ item }},`dig +short {{ item }}`"
+    with_items: "{{ ssh_known_hosts }}"
+    register: ssh_known_host_results
+    ignore_errors: yes
+
+  - name: Add/update the public key in the '{{ ssh_known_hosts_file }}'
+    known_hosts:
+      name: "{{ item.item }}"
+      key: "{{ item.stdout }}"
+      path: "{{ ssh_known_hosts_file }}"
+    with_items: "{{ ssh_known_host_results.results }}"
+
+- name: apply common configuration to all nodes
+  hosts: group
+
+  roles:
+    - seeddms_common
+
+- name: deploy MySQL and configure the databases
+  hosts: mysql
+
+  roles:
+    - seeddms_mysql
+
+- name: configure and deploy the webservers
+  hosts: webservers
+
+  roles:
+    - seeddms_lamp
+    - seeddms
+
+- name: configure haproxy and ssl on haproxy server
+  hosts: haproxy
+
+  roles:
+    - seeddms_haproxy
+    - seeddms_ssl 
